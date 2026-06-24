@@ -1,0 +1,93 @@
+# Full production stack for Coolify (Docker Compose resource).
+#
+# Coolify deploys from ONE compose file, so this bundles what the plain-VPS setup
+# splits across docker-compose.yml + docker-compose.prod.yml. Differences:
+#   - No host port bindings. Coolify's Traefik proxy fronts Metabase with a real
+#     domain + automatic HTTPS (the SERVICE_FQDN_* / SERVICE_URL_* magic vars).
+#   - Secrets (RIOT_API_KEY, POSTGRES_PASSWORD) come from Coolify env vars.
+#   - rclone.conf is provided as a Coolify file mount (gitignored, not in the repo).
+#   - No `autoheal` — it needs the Docker socket, unsafe on a shared Coolify host;
+#     Coolify manages container restarts itself.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rift} -d ${POSTGRES_DB:-lol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      RIOT_API_KEY: ${RIOT_API_KEY:?set RIOT_API_KEY in Coolify env vars}
+      REGION_GROUP: ${REGION_GROUP:-EUROPE}
+      DEFAULT_PLATFORM: ${DEFAULT_PLATFORM:-euw1}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+    healthcheck:
+      test: ["CMD", "node", "scripts/healthcheck.mjs"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  metabase:
+    image: metabase/metabase:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Coolify generates the domain + Traefik TLS config from this. Override the
+      # actual hostname in the Coolify UI (Metabase service → Domains).
+      SERVICE_FQDN_METABASE_3000: ${SERVICE_FQDN_METABASE_3000}
+      MB_SITE_URL: ${SERVICE_URL_METABASE_3000}
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: ${POSTGRES_USER:-rift}
+      MB_DB_PASS: ${POSTGRES_PASSWORD:-change_me_please}
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+    expose:
+      - "3000"
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-gdrive}
+      RCLONE_PATH: ${RCLONE_PATH:-rift-archive-backups}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_CRON: ${BACKUP_CRON:-17 3 * * *}
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      # Provide this file's content in Coolify (backup service → Storages).
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
+
+volumes:
+  pgdata:
