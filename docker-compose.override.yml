@@ -1,0 +1,17 @@
+# Dev conveniences. Auto-merged by `docker compose up` (do NOT pass this file in
+# prod). Adds a localhost Postgres port and hot-reload for the worker.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432" # psql / Drizzle Studio from the host
+
+  worker:
+    restart: "no"
+    command: ["pnpm", "dev:worker"] # tsx watch — restarts on source changes
+    volumes:
+      - ./src:/app/src
+      - ./drizzle:/app/drizzle
+      - ./scripts:/app/scripts
+
+  metabase:
+    restart: "no"

@@ -1,0 +1,75 @@
+name: rift-archive
+
+# Base stack — safe to run as-is on a VPS (Metabase bound to localhost, Postgres
+# not published). Dev conveniences live in docker-compose.override.yml (auto-loaded
+# by `docker compose up`); prod extras (backups) in docker-compose.prod.yml.
+#   dev :  docker compose up -d --build
+#   prod:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    labels:
+      # Restarted by the autoheal sidecar (prod file) if its healthcheck fails.
+      autoheal: "true"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rift} -d ${POSTGRES_DB:-lol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: .
+    restart: unless-stopped
+    labels:
+      # Restarted by the autoheal sidecar (prod file) if its healthcheck fails.
+      autoheal: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      RIOT_API_KEY: ${RIOT_API_KEY:?set RIOT_API_KEY in .env}
+      REGION_GROUP: ${REGION_GROUP:-EUROPE}
+      DEFAULT_PLATFORM: ${DEFAULT_PLATFORM:-euw1}
+      # DATABASE_URL is built in-code from these (single password source).
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+    healthcheck:
+      # Fresh heartbeat file (written by the worker after a successful DB ping).
+      test: ["CMD", "node", "scripts/healthcheck.mjs"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  metabase:
+    image: metabase/metabase:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Localhost only — put a reverse proxy (TLS + auth) in front for remote access.
+      - "127.0.0.1:3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      # Reuses the same Postgres password — nothing to keep in sync.
+      MB_DB_USER: ${POSTGRES_USER:-rift}
+      MB_DB_PASS: ${POSTGRES_PASSWORD:-change_me_please}
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+
+volumes:
+  pgdata:

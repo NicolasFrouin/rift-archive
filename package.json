@@ -1,0 +1,33 @@
+{
+  "name": "rift-archive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Permanent archiver for League of Legends match history (raw match-v5 JSON in Postgres).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "worker": "tsx src/worker.ts",
+    "cli": "tsx src/cli.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.36.4",
+    "pg": "^8.13.1",
+    "pg-boss": "^10.1.5",
+    "twisted": "^1.62.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.28.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

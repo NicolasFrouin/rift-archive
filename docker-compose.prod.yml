@@ -1,0 +1,40 @@
+# Production-only additions. Use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Adds the offsite backup sidecar. Requires an rclone.conf next to this file
+# (gitignored) with a remote named ${RCLONE_REMOTE} — see README for Google Drive.
+services:
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-rift}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_please}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-gdrive}
+      RCLONE_PATH: ${RCLONE_PATH:-rift-archive-backups}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_CRON: ${BACKUP_CRON:-17 3 * * *}
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - ./rclone.conf:/config/rclone/rclone.conf:ro
+
+  # Watches containers labelled `autoheal=true` and restarts any whose Docker
+  # healthcheck reports unhealthy. Needs the Docker socket (it issues restarts),
+  # so it only runs in prod — keep this host trusted.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: ${AUTOHEAL_INTERVAL:-30}      # seconds between checks
+      AUTOHEAL_START_PERIOD: ${AUTOHEAL_START_PERIOD:-60}
+      TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
