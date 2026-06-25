@@ -215,6 +215,7 @@ async function syncCards(
       name: card.name,
       description: withMarker(card.id, card.description),
       display: card.display ?? 'table',
+      visualization_settings: {},
       dataset_query: {
         type: 'native',
         database: databaseId,
