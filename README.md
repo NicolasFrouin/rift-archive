@@ -104,6 +104,7 @@ Optional startup retry tuning:
 
 - `WORKER_MB_SYNC_ATTEMPTS` (default `8`)
 - `WORKER_MB_SYNC_RETRY_DELAY_MS` (default `5000`)
+- `WORKER_MB_SYNC_INITIAL_DELAY_MS` (default `30000`)
 
 Startup sync is best-effort: if Metabase is still booting or credentials are
 missing, the worker logs the sync failure and continues processing archive jobs.

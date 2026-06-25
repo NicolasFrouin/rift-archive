@@ -28,30 +28,43 @@ const WORKER_MB_SYNC_RETRY_DELAY_MS = Math.max(
   250,
   Number(process.env.WORKER_MB_SYNC_RETRY_DELAY_MS ?? '5000'),
 );
+const WORKER_MB_SYNC_INITIAL_DELAY_MS = Math.max(
+  0,
+  Number(process.env.WORKER_MB_SYNC_INITIAL_DELAY_MS ?? '30000'),
+);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function syncDashboardsOnStartup(): Promise<void> {
+function syncDashboardsOnStartup(): void {
   if (!WORKER_MB_SYNC_ON_STARTUP) return;
 
-  for (let attempt = 1; attempt <= WORKER_MB_SYNC_ATTEMPTS; attempt += 1) {
-    try {
-      console.log(`[worker] syncing metabase dashboards (attempt ${attempt}/${WORKER_MB_SYNC_ATTEMPTS})…`);
-      await syncMetabaseDashboards();
-      console.log('[worker] metabase dashboard sync done');
-      return;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (attempt === WORKER_MB_SYNC_ATTEMPTS) {
-        console.error(`[worker] metabase dashboard sync failed after ${attempt} attempts: ${message}`);
-        return;
-      }
-      console.warn(`[worker] metabase sync attempt ${attempt} failed: ${message}`);
-      await sleep(WORKER_MB_SYNC_RETRY_DELAY_MS);
+  void (async () => {
+    if (WORKER_MB_SYNC_INITIAL_DELAY_MS > 0) {
+      console.log(
+        `[worker] metabase startup sync will start in ${WORKER_MB_SYNC_INITIAL_DELAY_MS}ms (service warm-up delay)`,
+      );
+      await sleep(WORKER_MB_SYNC_INITIAL_DELAY_MS);
     }
-  }
+
+    for (let attempt = 1; attempt <= WORKER_MB_SYNC_ATTEMPTS; attempt += 1) {
+      try {
+        console.log(`[worker] syncing metabase dashboards (attempt ${attempt}/${WORKER_MB_SYNC_ATTEMPTS})…`);
+        await syncMetabaseDashboards();
+        console.log('[worker] metabase dashboard sync done');
+        return;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (attempt === WORKER_MB_SYNC_ATTEMPTS) {
+          console.error(`[worker] metabase dashboard sync failed after ${attempt} attempts: ${message}`);
+          return;
+        }
+        console.warn(`[worker] metabase sync attempt ${attempt} failed: ${message}`);
+        await sleep(WORKER_MB_SYNC_RETRY_DELAY_MS);
+      }
+    }
+  })();
 }
 
 async function beat(): Promise<void> {
@@ -77,7 +90,7 @@ async function main(): Promise<void> {
   console.log('[worker] applying views…');
   await applyViews();
 
-  await syncDashboardsOnStartup();
+  syncDashboardsOnStartup();
 
   const boss = getBoss();
   await boss.start();
