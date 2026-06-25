@@ -13,6 +13,9 @@ import { storeMatch } from './jobs/store-match.js';
 import { backfillPlayer } from './jobs/backfill-player.js';
 import { fetchIncremental } from './jobs/fetch-incremental.js';
 import { syncMetabaseDashboards } from './metabase/sync.js';
+import { generateAllAnalyticsFiles } from './metabase/player-analytics.js';
+import { db } from './db/index.js';
+import { players } from './db/schema.js';
 
 // Runs the incremental sweep every 6 hours (UTC inside the container).
 const INCREMENTAL_CRON = '0 */6 * * *';
@@ -41,6 +44,17 @@ function syncDashboardsOnStartup(): void {
   if (!WORKER_MB_SYNC_ON_STARTUP) return;
 
   void (async () => {
+    try {
+      const rows = await db.select().from(players);
+      await generateAllAnalyticsFiles(
+        rows.map((p) => ({ puuid: p.puuid, gameName: p.gameName, tagLine: p.tagLine })),
+      );
+      console.log(`[worker] generated metabase analytics files for ${rows.length} player(s)`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[worker] metabase analytics generation failed: ${message}`);
+    }
+
     if (WORKER_MB_SYNC_INITIAL_DELAY_MS > 0) {
       console.log(
         `[worker] metabase startup sync will start in ${WORKER_MB_SYNC_INITIAL_DELAY_MS}ms (service warm-up delay)`,

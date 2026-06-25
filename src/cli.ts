@@ -5,6 +5,11 @@ import { resolvePuuid } from './riot/client.js';
 import { getBoss, QUEUES } from './jobs/boss.js';
 import { env } from './env.js';
 import { syncMetabaseDashboards } from './metabase/sync.js';
+import {
+  generateAllAnalyticsFiles,
+  generatePlayerAnalyticsFiles,
+  generateSharedAnalyticsFiles,
+} from './metabase/player-analytics.js';
 
 /**
  * Small operational CLI (raw-SQL floor via Drizzle). Run inside the worker
@@ -46,6 +51,10 @@ async function addPlayer(args: string[]): Promise<void> {
     .returning();
 
   console.log(`Saved player #${row!.id} (${gameName}#${tagLine}) puuid=${puuid} platform=${platform}`);
+
+  await generateSharedAnalyticsFiles();
+  const analyticsDir = await generatePlayerAnalyticsFiles({ puuid, gameName, tagLine });
+  console.log(`Generated per-player analytics in ${analyticsDir}. Run "metabase-sync" to publish.`);
 
   if (!row!.backfillDone) {
     const boss = getBoss();
@@ -92,6 +101,16 @@ async function deactivatePlayer(args: string[]): Promise<void> {
   console.log(`Deactivated #${match.id} (${gameName}#${tagLine}). Archive is kept; fetching stops.`);
 }
 
+async function metabaseGenerate(): Promise<void> {
+  const rows = await db.select().from(players);
+  await generateAllAnalyticsFiles(
+    rows.map((p) => ({ puuid: p.puuid, gameName: p.gameName, tagLine: p.tagLine })),
+  );
+  console.log(
+    `Generated shared analytics and per-player folders for ${rows.length} player(s). Run "metabase-sync" to publish.`,
+  );
+}
+
 async function metabaseSync(args: string[]): Promise<void> {
   const url = getFlag(args, 'url');
   const username = getFlag(args, 'username');
@@ -123,9 +142,12 @@ async function main(): Promise<void> {
     case 'metabase-sync':
       await metabaseSync(args);
       break;
+    case 'metabase-generate':
+      await metabaseGenerate();
+      break;
     default:
       console.log(
-        'Commands: add-player "Name#TAG" [--platform euw1] | list-players | deactivate-player "Name#TAG" | metabase-sync [--url http://localhost:3000] [--username user@host] [--password *****] [--database lol]',
+        'Commands: add-player "Name#TAG" [--platform euw1] | list-players | deactivate-player "Name#TAG" | metabase-generate | metabase-sync [--url http://localhost:3000] [--username user@host] [--password *****] [--database lol]',
       );
       process.exitCode = command ? 1 : 0;
   }
