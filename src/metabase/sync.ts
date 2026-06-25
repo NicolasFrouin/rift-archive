@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,6 +27,8 @@ type CardDefinition = {
   display?: string;
   queryFile: string;
 };
+
+type LoadedCard = CardDefinition & { query: string };
 
 type DashboardCardDefinition = {
   cardId: string;
@@ -86,38 +88,79 @@ async function readJsonFile<T>(path: string): Promise<T> {
   return JSON.parse(raw) as T;
 }
 
-async function loadCards(): Promise<CardDefinition[]> {
-  const cardsDir = join(metabaseDir, 'cards');
-  const files = (await readdir(cardsDir)).filter((file) => file.endsWith('.json')).sort();
+async function listSubdirectories(dir: string): Promise<string[]> {
+  let entries: string[];
+  try {
+    entries = await readdir(dir);
+  } catch {
+    return [];
+  }
 
-  const cards = await Promise.all(
-    files.map(async (file): Promise<CardDefinition> => {
-      const fullPath = join(cardsDir, file);
-      const card = await readJsonFile<CardDefinition>(fullPath);
+  const dirs: string[] = [];
+  for (const entry of entries.sort()) {
+    const fullPath = join(dir, entry);
+    if ((await stat(fullPath)).isDirectory()) {
+      dirs.push(fullPath);
+    }
+  }
+  return dirs;
+}
+
+async function loadCardsFromDir(cardsDir: string): Promise<LoadedCard[]> {
+  let files: string[];
+  try {
+    files = (await readdir(cardsDir)).filter((file) => file.endsWith('.json')).sort();
+  } catch {
+    return [];
+  }
+
+  return Promise.all(
+    files.map(async (file): Promise<LoadedCard> => {
+      const card = await readJsonFile<CardDefinition>(join(cardsDir, file));
       if (!card.id || !card.name || !card.queryFile) {
-        throw new Error(`Invalid card definition in ${file}`);
+        throw new Error(`Invalid card definition in ${join(cardsDir, file)}`);
       }
-      return card;
+      const query = await readFile(join(cardsDir, card.queryFile), 'utf8');
+      return { ...card, query };
     }),
   );
+}
+
+async function loadCards(): Promise<LoadedCard[]> {
+  const cards = await loadCardsFromDir(join(metabaseDir, 'cards'));
+
+  for (const playerDir of await listSubdirectories(join(metabaseDir, 'players'))) {
+    cards.push(...(await loadCardsFromDir(join(playerDir, 'cards'))));
+  }
 
   return cards;
 }
 
-async function loadDashboards(): Promise<DashboardDefinition[]> {
-  const dashboardsDir = join(metabaseDir, 'dashboards');
-  const files = (await readdir(dashboardsDir)).filter((file) => file.endsWith('.json')).sort();
+async function loadDashboardsFromDir(dashboardsDir: string): Promise<DashboardDefinition[]> {
+  let files: string[];
+  try {
+    files = (await readdir(dashboardsDir)).filter((file) => file.endsWith('.json')).sort();
+  } catch {
+    return [];
+  }
 
-  const dashboards = await Promise.all(
+  return Promise.all(
     files.map(async (file): Promise<DashboardDefinition> => {
-      const fullPath = join(dashboardsDir, file);
-      const dashboard = await readJsonFile<DashboardDefinition>(fullPath);
+      const dashboard = await readJsonFile<DashboardDefinition>(join(dashboardsDir, file));
       if (!dashboard.id || !dashboard.name || !Array.isArray(dashboard.cards)) {
-        throw new Error(`Invalid dashboard definition in ${file}`);
+        throw new Error(`Invalid dashboard definition in ${join(dashboardsDir, file)}`);
       }
       return dashboard;
     }),
   );
+}
+
+async function loadDashboards(): Promise<DashboardDefinition[]> {
+  const dashboards = await loadDashboardsFromDir(join(metabaseDir, 'dashboards'));
+
+  for (const playerDir of await listSubdirectories(join(metabaseDir, 'players'))) {
+    dashboards.push(...(await loadDashboardsFromDir(playerDir)));
+  }
 
   return dashboards;
 }
@@ -267,13 +310,13 @@ class MetabaseClient {
 async function syncCards(
   client: MetabaseClient,
   databaseId: number,
-  cards: CardDefinition[],
+  cards: LoadedCard[],
 ): Promise<Map<string, number>> {
   const existing = await client.listCards();
   const cardIds = new Map<string, number>();
 
   for (const card of cards) {
-    const query = await readFile(join(metabaseDir, 'cards', card.queryFile), 'utf8');
+    const query = card.query;
     const payload: Record<string, unknown> = {
       name: card.name,
       description: withMarker(card.id, card.description),

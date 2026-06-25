@@ -1,7 +1,0 @@
-{
-  "id": "kpi-total-matches",
-  "name": "Matches Archived",
-  "description": "Distinct matches stored across all monitored players.",
-  "display": "scalar",
-  "queryFile": "006-kpi-total-matches.sql"
-}

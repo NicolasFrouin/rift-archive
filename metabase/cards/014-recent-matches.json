@@ -1,7 +1,0 @@
-{
-  "id": "recent-matches",
-  "name": "Recent Matches",
-  "description": "Last 30 archived games across all monitored players.",
-  "display": "table",
-  "queryFile": "014-recent-matches.sql"
-}

@@ -1,7 +1,0 @@
-{
-  "id": "kpi-tracked-players",
-  "name": "Tracked Players",
-  "description": "Distinct monitored players with at least one archived match.",
-  "display": "scalar",
-  "queryFile": "008-kpi-tracked-players.sql"
-}

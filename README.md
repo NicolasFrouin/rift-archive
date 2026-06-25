@@ -69,18 +69,24 @@ A future web layer would just be another reader of the same Postgres.
    **Postgres** data source pointing at host `postgres`, database `lol`. Build charts
    off `v_player_match_stats` (e.g. winrate by champion, games per week).
 
-## Dashboards as files
+## Dashboards as code
 
-You can keep Metabase dashboards in git and re-apply them at any time.
+Metabase dashboards are **generated from code** — they are not hand-maintained
+files. The definitions live in [`src/metabase/player-analytics.ts`](src/metabase/player-analytics.ts):
 
-- Card definitions live in `metabase/cards/*.json`
-- Card SQL lives in `metabase/cards/*.sql`
-- Dashboard layouts live in `metabase/dashboards/*.json`
+- Shared analytics (archive KPIs, weekly winrate comparison, the player
+  leaderboard) and the `Rift Archive Overview` dashboard.
+- A full per-player analytics dashboard for every monitored player, scoped by
+  the player's `puuid`.
 
-Seed/sync them to Metabase:
+Generation writes a throwaway `metabase/` tree (cards + dashboards) which is
+**gitignored** and rebuilt on demand, then the sync command pushes it to
+Metabase. You can safely delete the `metabase/` folder at any time; it is
+regenerated from the database and code.
 
 ```bash
-pnpm metabase:sync
+pnpm metabase:generate   # regenerate metabase/ from the DB + code
+pnpm metabase:sync       # push the generated cards/dashboards to Metabase
 ```
 
 By default, the sync reads worker-scoped vars (`WORKER_MB_URL`,
@@ -91,10 +97,13 @@ for backward compatibility. If you run the command from your host machine, use
 `--url http://localhost:3000` (or set `WORKER_MB_URL`) instead.
 
 The sync command upserts cards/dashboards (tracked with stable IDs in
-descriptions) and rewrites dashboard layout from files, so git is your source of
-truth.
+descriptions) and rewrites dashboard layout from the generated files.
 
-To run the sync automatically when the worker starts:
+### On deploy
+
+When the worker starts it **generates then syncs** automatically (gated by the
+flag below), so a fresh deploy rebuilds every dashboard from the current player
+list with no committed files required:
 
 ```bash
 WORKER_MB_SYNC_ON_STARTUP=true
@@ -106,8 +115,14 @@ Optional startup retry tuning:
 - `WORKER_MB_SYNC_RETRY_DELAY_MS` (default `5000`)
 - `WORKER_MB_SYNC_INITIAL_DELAY_MS` (default `30000`)
 
-Startup sync is best-effort: if Metabase is still booting or credentials are
-missing, the worker logs the sync failure and continues processing archive jobs.
+Startup generate+sync is best-effort: if Metabase is still booting or
+credentials are missing, the worker logs the failure and continues processing
+archive jobs.
+
+`add-player` also regenerates the shared files and the new player's folder
+immediately. Card/dashboard identity is keyed on the player's `puuid`, so
+renaming a player updates the same Metabase objects instead of creating
+duplicates.
 
 ## Deployment
 

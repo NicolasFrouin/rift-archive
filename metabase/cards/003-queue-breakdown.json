@@ -1,7 +1,0 @@
-{
-  "id": "queue-breakdown",
-  "name": "Queue Breakdown",
-  "description": "Games and winrate split by queue.",
-  "display": "bar",
-  "queryFile": "003-queue-breakdown.sql"
-}

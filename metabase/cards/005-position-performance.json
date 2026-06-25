@@ -1,7 +1,0 @@
-{
-  "id": "position-performance",
-  "name": "Position Performance",
-  "description": "Role split with games, winrate, and core combat averages.",
-  "display": "bar",
-  "queryFile": "005-position-performance.sql"
-}
