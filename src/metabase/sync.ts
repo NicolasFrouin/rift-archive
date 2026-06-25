@@ -290,35 +290,50 @@ export type SyncMetabaseOptions = {
   databaseName?: string;
 };
 
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    if (value && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export async function syncMetabaseDashboards(options: SyncMetabaseOptions = {}): Promise<void> {
   const url =
-    options.url ??
-    process.env.WORKER_MB_URL ??
-    process.env.MB_SITE_URL ??
-    process.env.MB_URL ??
-    process.env.METABASE_URL ??
-    'http://metabase:3000';
-  const username =
-    options.username ??
-    process.env.WORKER_MB_USERNAME ??
-    process.env.MB_USERNAME ??
-    process.env.MB_ADMIN_EMAIL ??
-    process.env.METABASE_USERNAME ??
-    process.env.POSTGRES_USER;
-  const password =
-    options.password ??
-    process.env.WORKER_MB_PASSWORD ??
-    process.env.MB_PASSWORD ??
-    process.env.MB_ADMIN_PASSWORD ??
-    process.env.METABASE_PASSWORD ??
-    process.env.POSTGRES_PASSWORD;
+    firstNonEmpty(
+    options.url,
+    process.env.WORKER_MB_URL,
+    process.env.MB_SITE_URL,
+    process.env.MB_URL,
+    process.env.METABASE_URL,
+    'http://metabase:3000',
+    ) ?? 'http://metabase:3000';
+  const username = firstNonEmpty(
+    options.username,
+    process.env.WORKER_MB_USERNAME,
+    process.env.MB_USERNAME,
+    process.env.MB_ADMIN_EMAIL,
+    process.env.METABASE_USERNAME,
+    process.env.POSTGRES_USER,
+  );
+  const password = firstNonEmpty(
+    options.password,
+    process.env.WORKER_MB_PASSWORD,
+    process.env.MB_PASSWORD,
+    process.env.MB_ADMIN_PASSWORD,
+    process.env.METABASE_PASSWORD,
+    process.env.POSTGRES_PASSWORD,
+  );
   const databaseName =
-    options.databaseName ??
-    process.env.WORKER_MB_DATABASE_NAME ??
-    process.env.MB_DATABASE_NAME ??
-    process.env.METABASE_DATABASE_NAME ??
-    process.env.POSTGRES_DB ??
-    'lol';
+    firstNonEmpty(
+    options.databaseName,
+    process.env.WORKER_MB_DATABASE_NAME,
+    process.env.MB_DATABASE_NAME,
+    process.env.METABASE_DATABASE_NAME,
+    process.env.POSTGRES_DB,
+    'metabase',
+    ) ?? 'metabase';
 
   if (!username || !password) {
     throw new Error(
