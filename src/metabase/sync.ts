@@ -42,6 +42,15 @@ type DashboardDefinition = {
   cards: DashboardCardDefinition[];
 };
 
+class MetabaseHttpError extends Error {
+  status: number;
+
+  constructor(status: number, path: string, body: string) {
+    super(`Metabase request failed (${status}) ${path}: ${body}`);
+    this.status = status;
+  }
+}
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const metabaseDir = join(root, 'metabase');
 
@@ -120,7 +129,7 @@ class MetabaseClient {
     const res = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Metabase request failed (${res.status}) ${path}: ${text}`);
+      throw new MetabaseHttpError(res.status, path, text);
     }
 
     if (res.status === 204) {
@@ -188,16 +197,39 @@ class MetabaseClient {
   }
 
   async deleteDashboardCard(dashboardId: number, dashcardId: number): Promise<void> {
-    await this.request<void>(`/api/dashboard/${dashboardId}/cards/${dashcardId}`, {
-      method: 'DELETE',
-    });
+    const paths = [
+      `/api/dashboard/${dashboardId}/cards/${dashcardId}`,
+      `/api/dashboard/${dashboardId}/dashcards/${dashcardId}`,
+    ];
+
+    for (let i = 0; i < paths.length; i += 1) {
+      try {
+        await this.request<void>(paths[i]!, { method: 'DELETE' });
+        return;
+      } catch (err) {
+        if (!(err instanceof MetabaseHttpError) || err.status !== 404 || i === paths.length - 1) {
+          throw err;
+        }
+      }
+    }
   }
 
   async addDashboardCard(dashboardId: number, payload: Record<string, unknown>): Promise<void> {
-    await this.request(`/api/dashboard/${dashboardId}/cards`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    const paths = [`/api/dashboard/${dashboardId}/cards`, `/api/dashboard/${dashboardId}/dashcards`];
+
+    for (let i = 0; i < paths.length; i += 1) {
+      try {
+        await this.request(paths[i]!, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        return;
+      } catch (err) {
+        if (!(err instanceof MetabaseHttpError) || err.status !== 404 || i === paths.length - 1) {
+          throw err;
+        }
+      }
+    }
   }
 }
 
