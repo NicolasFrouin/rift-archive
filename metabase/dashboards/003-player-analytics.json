@@ -1,0 +1,16 @@
+{
+  "id": "player-analytics",
+  "name": "Player Analytics",
+  "description": "In-depth per-player analytics: archive KPIs, KDA trend, per-minute economy, vision, champion winrates, game-length splits, and recent games.",
+  "cards": [
+    { "cardId": "kpi-total-matches", "row": 0, "col": 0, "sizeX": 8, "sizeY": 3 },
+    { "cardId": "kpi-total-games", "row": 0, "col": 8, "sizeX": 8, "sizeY": 3 },
+    { "cardId": "kpi-tracked-players", "row": 0, "col": 16, "sizeX": 8, "sizeY": 3 },
+    { "cardId": "kda-trend", "row": 3, "col": 0, "sizeX": 24, "sizeY": 7 },
+    { "cardId": "combat-averages", "row": 10, "col": 0, "sizeX": 24, "sizeY": 8 },
+    { "cardId": "champion-winrate", "row": 18, "col": 0, "sizeX": 12, "sizeY": 7 },
+    { "cardId": "duration-winrate", "row": 18, "col": 12, "sizeX": 12, "sizeY": 7 },
+    { "cardId": "vision-by-position", "row": 25, "col": 0, "sizeX": 24, "sizeY": 7 },
+    { "cardId": "recent-matches", "row": 32, "col": 0, "sizeX": 24, "sizeY": 9 }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "vision-by-position",
+  "name": "Vision by Role",
+  "description": "Average vision score per player and role.",
+  "display": "bar",
+  "queryFile": "011-vision-by-position.sql"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "kpi-total-games",
+  "name": "Tracked Participations",
+  "description": "Total games played by monitored players (one per player per match).",
+  "display": "scalar",
+  "queryFile": "007-kpi-total-games.sql"
+}

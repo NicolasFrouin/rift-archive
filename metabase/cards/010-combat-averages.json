@@ -1,0 +1,7 @@
+{
+  "id": "combat-averages",
+  "name": "Per-Minute Combat Averages",
+  "description": "CS, gold, and damage per minute plus average vision, per player.",
+  "display": "table",
+  "queryFile": "010-combat-averages.sql"
+}
