@@ -1,0 +1,7 @@
+{
+  "id": "duration-winrate",
+  "name": "Winrate by Game Length",
+  "description": "Winrate bucketed by game duration, per player.",
+  "display": "bar",
+  "queryFile": "013-duration-winrate.sql"
+}

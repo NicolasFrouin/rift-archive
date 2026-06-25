@@ -1,0 +1,7 @@
+{
+  "id": "kda-trend",
+  "name": "Weekly KDA Trend",
+  "description": "Average KDA per player over the last 26 weeks.",
+  "display": "line",
+  "queryFile": "009-kda-trend.sql"
+}
