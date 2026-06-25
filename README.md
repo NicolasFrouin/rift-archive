@@ -69,6 +69,45 @@ A future web layer would just be another reader of the same Postgres.
    **Postgres** data source pointing at host `postgres`, database `lol`. Build charts
    off `v_player_match_stats` (e.g. winrate by champion, games per week).
 
+## Dashboards as files
+
+You can keep Metabase dashboards in git and re-apply them at any time.
+
+- Card definitions live in `metabase/cards/*.json`
+- Card SQL lives in `metabase/cards/*.sql`
+- Dashboard layouts live in `metabase/dashboards/*.json`
+
+Seed/sync them to Metabase:
+
+```bash
+pnpm metabase:sync
+```
+
+By default, the sync reads worker-scoped vars (`WORKER_MB_URL`,
+`WORKER_MB_USERNAME`, `WORKER_MB_PASSWORD`, `WORKER_MB_DATABASE_NAME`). In
+Docker Compose, the default URL is the internal service DNS
+(`http://metabase:3000`). `MB_*` and `METABASE_*` aliases are also supported
+for backward compatibility. If you run the command from your host machine, use
+`--url http://localhost:3000` (or set `WORKER_MB_URL`) instead.
+
+The sync command upserts cards/dashboards (tracked with stable IDs in
+descriptions) and rewrites dashboard layout from files, so git is your source of
+truth.
+
+To run the sync automatically when the worker starts:
+
+```bash
+WORKER_MB_SYNC_ON_STARTUP=true
+```
+
+Optional startup retry tuning:
+
+- `WORKER_MB_SYNC_ATTEMPTS` (default `8`)
+- `WORKER_MB_SYNC_RETRY_DELAY_MS` (default `5000`)
+
+Startup sync is best-effort: if Metabase is still booting or credentials are
+missing, the worker logs the sync failure and continues processing archive jobs.
+
 ## Deployment
 
 Compose is split so the same images run two ways:
