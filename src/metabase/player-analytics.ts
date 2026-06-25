@@ -39,6 +39,12 @@ function riotId(player: PlayerIdentity): string {
   return `${player.gameName}#${player.tagLine}`;
 }
 
+const ROOT_COLLECTION = 'Rift Archive';
+
+function playerCollection(player: PlayerIdentity): string[] {
+  return [ROOT_COLLECTION, 'Players', riotId(player)];
+}
+
 // puuids from Riot are URL-safe (letters, digits, '-', '_'). Guard before
 // embedding into generated SQL so a generated file can never carry an injection.
 function assertSafePuuid(puuid: string): void {
@@ -267,6 +273,7 @@ export async function generatePlayerAnalyticsFiles(player: PlayerIdentity): Prom
         description: card.description,
         display: card.display,
         queryFile: `${base}.sql`,
+        collection: playerCollection(player),
       };
       await writeFile(join(cardsDir, `${base}.json`), `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
       await writeFile(join(cardsDir, `${base}.sql`), card.sql, 'utf8');
@@ -277,6 +284,7 @@ export async function generatePlayerAnalyticsFiles(player: PlayerIdentity): Prom
     id: `player-${player.puuid}-analytics`,
     name: `${riotId(player)} — Analytics`,
     description: `In-depth analytics scoped to ${riotId(player)}.`,
+    collection: playerCollection(player),
     cards: layout.map((entry) => ({
       cardId: cardMarkerId(player, entry.cardKey),
       row: entry.row,
@@ -385,6 +393,7 @@ const overviewDashboard = {
   name: 'Rift Archive Overview',
   description:
     'Archive-wide totals and a cross-player leaderboard. Per-player deep dives live in their own dashboards.',
+  collection: [ROOT_COLLECTION],
   cards: [
     { cardId: 'kpi-total-matches', row: 0, col: 0, sizeX: 8, sizeY: 3 },
     { cardId: 'kpi-total-games', row: 0, col: 8, sizeX: 8, sizeY: 3 },
@@ -407,6 +416,7 @@ export async function generateSharedAnalyticsFiles(): Promise<void> {
         description: card.description,
         display: card.display,
         queryFile: `${card.base}.sql`,
+        collection: [ROOT_COLLECTION],
       };
       await writeFile(
         join(sharedCardsDir, `${card.base}.json`),

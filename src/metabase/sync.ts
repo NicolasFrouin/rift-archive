@@ -14,6 +14,13 @@ type MetabaseCardSummary = {
   description?: string | null;
 };
 
+type MetabaseCollectionSummary = {
+  id: number | string;
+  name: string;
+  location?: string | null;
+  personal_owner_id?: number | null;
+};
+
 type MetabaseDashboardDetails = {
   id: number;
   dashcards?: Array<{ id: number }>;
@@ -26,6 +33,7 @@ type CardDefinition = {
   description?: string;
   display?: string;
   queryFile: string;
+  collection?: string[];
 };
 
 type LoadedCard = CardDefinition & { query: string };
@@ -43,6 +51,7 @@ type DashboardDefinition = {
   name: string;
   description?: string;
   cards: DashboardCardDefinition[];
+  collection?: string[];
 };
 
 class MetabaseHttpError extends Error {
@@ -219,6 +228,20 @@ class MetabaseClient {
     return Array.isArray(out) ? out : out.data;
   }
 
+  async listCollections(): Promise<MetabaseCollectionSummary[]> {
+    const out = await this.request<
+      MetabaseCollectionSummary[] | { data: MetabaseCollectionSummary[] }
+    >('/api/collection');
+    return Array.isArray(out) ? out : out.data;
+  }
+
+  async createCollection(payload: Record<string, unknown>): Promise<{ id: number }> {
+    return this.request<{ id: number }>('/api/collection', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async createCard(payload: Record<string, unknown>): Promise<{ id: number }> {
     return this.request<{ id: number }>('/api/card', {
       method: 'POST',
@@ -307,10 +330,56 @@ class MetabaseClient {
   }
 }
 
+// Resolves each collection path (e.g. ["Rift Archive", "Players", "Faker#KR1"])
+// to a Metabase collection id, creating any missing collection on the way.
+async function ensureCollections(
+  client: MetabaseClient,
+  paths: string[][],
+): Promise<Map<string, number>> {
+  const collections = (await client.listCollections()).filter(
+    (entry): entry is MetabaseCollectionSummary & { id: number } =>
+      typeof entry.id === 'number' && entry.personal_owner_id == null,
+  );
+  const idByKey = new Map<string, number>();
+
+  for (const path of paths) {
+    let parentId: number | null = null;
+    let parentLocation = '/';
+    const segments: string[] = [];
+
+    for (const name of path) {
+      segments.push(name);
+      const key = segments.join('/');
+      let id = idByKey.get(key);
+
+      if (id == null) {
+        const found = collections.find(
+          (entry) => entry.name === name && (entry.location ?? '/') === parentLocation,
+        );
+        if (found) id = found.id;
+      }
+
+      if (id == null) {
+        const payload: Record<string, unknown> = { name };
+        if (parentId != null) payload.parent_id = parentId;
+        id = (await client.createCollection(payload)).id;
+        collections.push({ id, name, location: parentLocation, personal_owner_id: null });
+      }
+
+      idByKey.set(key, id);
+      parentId = id;
+      parentLocation = `${parentLocation}${id}/`;
+    }
+  }
+
+  return idByKey;
+}
+
 async function syncCards(
   client: MetabaseClient,
   databaseId: number,
   cards: LoadedCard[],
+  collectionIds: Map<string, number>,
 ): Promise<Map<string, number>> {
   const existing = await client.listCards();
   const cardIds = new Map<string, number>();
@@ -332,6 +401,13 @@ async function syncCards(
       },
     };
 
+    const collectionId = card.collection
+      ? collectionIds.get(card.collection.join('/'))
+      : undefined;
+    if (collectionId != null) {
+      payload.collection_id = collectionId;
+    }
+
     const match = existing.find((entry) => hasMarker(entry.description, card.id));
 
     if (match) {
@@ -350,15 +426,23 @@ async function syncDashboards(
   client: MetabaseClient,
   dashboards: DashboardDefinition[],
   cardIds: Map<string, number>,
+  collectionIds: Map<string, number>,
 ): Promise<void> {
   const existing = await client.listDashboards();
 
   for (const dashboard of dashboards) {
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: dashboard.name,
       description: withMarker(dashboard.id, dashboard.description),
       parameters: [],
     };
+
+    const collectionId = dashboard.collection
+      ? collectionIds.get(dashboard.collection.join('/'))
+      : undefined;
+    if (collectionId != null) {
+      payload.collection_id = collectionId;
+    }
 
     const match = existing.find((entry) => hasMarker(entry.description, dashboard.id));
 
@@ -472,6 +556,12 @@ export async function syncMetabaseDashboards(options: SyncMetabaseOptions = {}):
     );
   }
 
-  const cardIds = await syncCards(client, database.id, cards);
-  await syncDashboards(client, dashboards, cardIds);
+  const collectionPaths = [
+    ...cards.map((card) => card.collection),
+    ...dashboards.map((dashboard) => dashboard.collection),
+  ].filter((path): path is string[] => Array.isArray(path) && path.length > 0);
+  const collectionIds = await ensureCollections(client, collectionPaths);
+
+  const cardIds = await syncCards(client, database.id, cards, collectionIds);
+  await syncDashboards(client, dashboards, cardIds, collectionIds);
 }
