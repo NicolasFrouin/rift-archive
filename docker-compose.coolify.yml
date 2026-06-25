@@ -71,6 +71,12 @@ services:
       MB_DB_PASS: ${POSTGRES_PASSWORD:-change_me_please}
       MB_DB_HOST: postgres
       MB_DB_PORT: 5432
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
     expose:
       - "3000"
 
