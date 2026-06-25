@@ -12,6 +12,7 @@ import {
 import { storeMatch } from './jobs/store-match.js';
 import { backfillPlayer } from './jobs/backfill-player.js';
 import { fetchIncremental } from './jobs/fetch-incremental.js';
+import { syncMetabaseDashboards } from './metabase/sync.js';
 
 // Runs the incremental sweep every 6 hours (UTC inside the container).
 const INCREMENTAL_CRON = '0 */6 * * *';
@@ -21,6 +22,37 @@ const INCREMENTAL_CRON = '0 */6 * * *';
 // Postgres reachable". The Docker healthcheck reads it (see scripts/healthcheck.mjs).
 const HEARTBEAT_FILE = process.env.HEARTBEAT_FILE ?? '/tmp/rift-worker-heartbeat';
 const HEARTBEAT_INTERVAL_MS = 60_000;
+const WORKER_MB_SYNC_ON_STARTUP = (process.env.WORKER_MB_SYNC_ON_STARTUP ?? 'false') === 'true';
+const WORKER_MB_SYNC_ATTEMPTS = Math.max(1, Number(process.env.WORKER_MB_SYNC_ATTEMPTS ?? '8'));
+const WORKER_MB_SYNC_RETRY_DELAY_MS = Math.max(
+  250,
+  Number(process.env.WORKER_MB_SYNC_RETRY_DELAY_MS ?? '5000'),
+);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function syncDashboardsOnStartup(): Promise<void> {
+  if (!WORKER_MB_SYNC_ON_STARTUP) return;
+
+  for (let attempt = 1; attempt <= WORKER_MB_SYNC_ATTEMPTS; attempt += 1) {
+    try {
+      console.log(`[worker] syncing metabase dashboards (attempt ${attempt}/${WORKER_MB_SYNC_ATTEMPTS})…`);
+      await syncMetabaseDashboards();
+      console.log('[worker] metabase dashboard sync done');
+      return;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt === WORKER_MB_SYNC_ATTEMPTS) {
+        console.error(`[worker] metabase dashboard sync failed after ${attempt} attempts: ${message}`);
+        return;
+      }
+      console.warn(`[worker] metabase sync attempt ${attempt} failed: ${message}`);
+      await sleep(WORKER_MB_SYNC_RETRY_DELAY_MS);
+    }
+  }
+}
 
 async function beat(): Promise<void> {
   try {
@@ -44,6 +76,8 @@ async function main(): Promise<void> {
 
   console.log('[worker] applying views…');
   await applyViews();
+
+  await syncDashboardsOnStartup();
 
   const boss = getBoss();
   await boss.start();
