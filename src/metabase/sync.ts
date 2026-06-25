@@ -16,7 +16,8 @@ type MetabaseCardSummary = {
 
 type MetabaseDashboardDetails = {
   id: number;
-  dashcards: Array<{ id: number }>;
+  dashcards?: Array<{ id: number }>;
+  tabs?: Array<{ id: number; name?: string }>;
 };
 
 type CardDefinition = {
@@ -50,6 +51,17 @@ class MetabaseHttpError extends Error {
     this.status = status;
   }
 }
+
+type DashboardCardUpsert = {
+  id: number;
+  card_id: number;
+  row: number;
+  col: number;
+  size_x: number;
+  size_y: number;
+  parameter_mappings: unknown[];
+  visualization_settings: Record<string, unknown>;
+};
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const metabaseDir = join(root, 'metabase');
@@ -231,6 +243,25 @@ class MetabaseClient {
       }
     }
   }
+
+  async replaceDashboardCards(dashboardId: number, cards: DashboardCardUpsert[]): Promise<void> {
+    try {
+      await this.request(`/api/dashboard/${dashboardId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ dashcards: cards }),
+      });
+      return;
+    } catch (err) {
+      if (!(err instanceof MetabaseHttpError) || err.status !== 404) {
+        throw err;
+      }
+    }
+
+    await this.request(`/api/dashboard/${dashboardId}/cards`, {
+      method: 'PUT',
+      body: JSON.stringify({ cards }),
+    });
+  }
 }
 
 async function syncCards(
@@ -293,10 +324,9 @@ async function syncDashboards(
       : (await client.createDashboard(payload)).id;
 
     const details = await client.getDashboard(dashboardId);
-    for (const dashcard of details.dashcards) {
-      await client.deleteDashboardCard(dashboardId, dashcard.id);
-    }
-
+    const defaultTabId = details.tabs?.[0]?.id;
+    let nextTemporaryId = -1;
+    const cardsToUpsert: DashboardCardUpsert[] = [];
     for (const card of dashboard.cards) {
       const cardId = cardIds.get(card.cardId);
       if (!cardId) {
@@ -304,15 +334,27 @@ async function syncDashboards(
           `Dashboard ${dashboard.id} references unknown card id ${card.cardId}. Check metabase/cards/*.json.`,
         );
       }
-      await client.addDashboardCard(dashboardId, {
-        cardId,
+
+      const dashcard: DashboardCardUpsert & { dashboard_tab_id?: number } = {
+        id: nextTemporaryId,
+        card_id: cardId,
         row: card.row,
         col: card.col,
-        sizeX: card.sizeX,
-        sizeY: card.sizeY,
+        size_x: card.sizeX,
+        size_y: card.sizeY,
         parameter_mappings: [],
-      });
+        visualization_settings: {},
+      };
+
+      if (defaultTabId) {
+        dashcard.dashboard_tab_id = defaultTabId;
+      }
+
+      cardsToUpsert.push(dashcard);
+      nextTemporaryId -= 1;
     }
+
+    await client.replaceDashboardCards(dashboardId, cardsToUpsert);
   }
 }
 
