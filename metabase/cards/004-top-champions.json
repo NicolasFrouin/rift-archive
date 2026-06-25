@@ -1,0 +1,7 @@
+{
+  "id": "top-champions",
+  "name": "Top Champions",
+  "description": "Most played champions with winrate and KDA.",
+  "display": "table",
+  "queryFile": "004-top-champions.sql"
+}

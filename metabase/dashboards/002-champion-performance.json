@@ -1,0 +1,9 @@
+{
+  "id": "champion-performance",
+  "name": "Champion and Role Performance",
+  "description": "Champion pool and lane-level outcomes.",
+  "cards": [
+    { "cardId": "top-champions", "row": 0, "col": 0, "sizeX": 8, "sizeY": 6 },
+    { "cardId": "position-performance", "row": 0, "col": 8, "sizeX": 4, "sizeY": 6 }
+  ]
+}

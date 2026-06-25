@@ -4,6 +4,7 @@ import { players } from './db/schema.js';
 import { resolvePuuid } from './riot/client.js';
 import { getBoss, QUEUES } from './jobs/boss.js';
 import { env } from './env.js';
+import { syncMetabaseDashboards } from './metabase/sync.js';
 
 /**
  * Small operational CLI (raw-SQL floor via Drizzle). Run inside the worker
@@ -91,6 +92,22 @@ async function deactivatePlayer(args: string[]): Promise<void> {
   console.log(`Deactivated #${match.id} (${gameName}#${tagLine}). Archive is kept; fetching stops.`);
 }
 
+async function metabaseSync(args: string[]): Promise<void> {
+  const url = getFlag(args, 'url');
+  const username = getFlag(args, 'username');
+  const password = getFlag(args, 'password');
+  const databaseName = getFlag(args, 'database');
+
+  await syncMetabaseDashboards({
+    url,
+    username,
+    password,
+    databaseName,
+  });
+
+  console.log('Metabase dashboards synced from metabase/cards and metabase/dashboards.');
+}
+
 async function main(): Promise<void> {
   const [command, ...args] = process.argv.slice(2);
   switch (command) {
@@ -103,8 +120,13 @@ async function main(): Promise<void> {
     case 'deactivate-player':
       await deactivatePlayer(args);
       break;
+    case 'metabase-sync':
+      await metabaseSync(args);
+      break;
     default:
-      console.log('Commands: add-player "Name#TAG" [--platform euw1] | list-players | deactivate-player "Name#TAG"');
+      console.log(
+        'Commands: add-player "Name#TAG" [--platform euw1] | list-players | deactivate-player "Name#TAG" | metabase-sync [--url http://localhost:3000] [--username user@host] [--password *****] [--database lol]',
+      );
       process.exitCode = command ? 1 : 0;
   }
 }

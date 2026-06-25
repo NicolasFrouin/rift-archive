@@ -10,6 +10,7 @@
   "scripts": {
     "worker": "tsx src/worker.ts",
     "cli": "tsx src/cli.ts",
+    "metabase:sync": "tsx src/cli.ts metabase-sync",
     "dev:worker": "tsx watch src/worker.ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",

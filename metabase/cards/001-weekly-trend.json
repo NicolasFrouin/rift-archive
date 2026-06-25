@@ -1,0 +1,7 @@
+{
+  "id": "weekly-trend",
+  "name": "Weekly Games and Winrate",
+  "description": "Games and winrate trend over the last 26 weeks.",
+  "display": "line",
+  "queryFile": "001-weekly-trend.sql"
+}

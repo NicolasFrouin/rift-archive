@@ -1,0 +1,7 @@
+{
+  "id": "player-summary",
+  "name": "Player Summary",
+  "description": "Per monitored player summary metrics.",
+  "display": "table",
+  "queryFile": "002-player-summary.sql"
+}

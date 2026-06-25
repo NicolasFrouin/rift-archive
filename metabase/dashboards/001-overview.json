@@ -1,0 +1,10 @@
+{
+  "id": "overview",
+  "name": "Rift Archive Overview",
+  "description": "Core archive activity and performance KPIs.",
+  "cards": [
+    { "cardId": "weekly-trend", "row": 0, "col": 0, "sizeX": 12, "sizeY": 6 },
+    { "cardId": "player-summary", "row": 6, "col": 0, "sizeX": 8, "sizeY": 6 },
+    { "cardId": "queue-breakdown", "row": 6, "col": 8, "sizeX": 4, "sizeY": 6 }
+  ]
+}
