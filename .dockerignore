@@ -6,3 +6,4 @@ dist
 rclone.conf
 *.log
 README.md
+metabase

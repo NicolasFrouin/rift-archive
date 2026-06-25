@@ -1,7 +1,0 @@
-{
-  "id": "champion-winrate",
-  "name": "Champion Winrate",
-  "description": "Winrate by champion per player (minimum 5 games).",
-  "display": "bar",
-  "queryFile": "012-champion-winrate.sql"
-}
