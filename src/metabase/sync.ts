@@ -303,13 +303,15 @@ export async function syncMetabaseDashboards(options: SyncMetabaseOptions = {}):
     process.env.WORKER_MB_USERNAME ??
     process.env.MB_USERNAME ??
     process.env.MB_ADMIN_EMAIL ??
-    process.env.METABASE_USERNAME;
+    process.env.METABASE_USERNAME ??
+    process.env.POSTGRES_USER;
   const password =
     options.password ??
     process.env.WORKER_MB_PASSWORD ??
     process.env.MB_PASSWORD ??
     process.env.MB_ADMIN_PASSWORD ??
-    process.env.METABASE_PASSWORD;
+    process.env.METABASE_PASSWORD ??
+    process.env.POSTGRES_PASSWORD;
   const databaseName =
     options.databaseName ??
     process.env.WORKER_MB_DATABASE_NAME ??
@@ -320,7 +322,7 @@ export async function syncMetabaseDashboards(options: SyncMetabaseOptions = {}):
 
   if (!username || !password) {
     throw new Error(
-      'Metabase credentials are required. Set WORKER_MB_USERNAME/WORKER_MB_PASSWORD, MB_USERNAME/MB_PASSWORD (or MB_ADMIN_EMAIL/MB_ADMIN_PASSWORD), METABASE_USERNAME/METABASE_PASSWORD, or pass --username/--password.',
+      'Metabase credentials are required. Set WORKER_MB_USERNAME/WORKER_MB_PASSWORD, MB_USERNAME/MB_PASSWORD (or MB_ADMIN_EMAIL/MB_ADMIN_PASSWORD), METABASE_USERNAME/METABASE_PASSWORD, POSTGRES_USER/POSTGRES_PASSWORD, or pass --username/--password.',
     );
   }
 
